@@ -70,35 +70,28 @@ func (s *Server) listen() {
 
 func (s *Server) handle(conn net.Conn) {
 	defer conn.Close()
-
+	writer := response.Writer{
+		Writer: conn,
+		State:  response.WritingStatusLine,
+	}
 	req, err := request.RequestFromReader(conn)
 	if err != nil {
-		log.Fatal(err)
+		err := writer.WriteStatusLine(response.StatusBadRequest)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		body := fmt.Appendf(make([]byte, 0), "Error parsing request: %v", err)
+		err = writer.WriteHeaders(response.GetDefaultHeaders(len(body)))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		_, err = writer.WriteBody(body)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	var writer response.Writer
+
 	s.handler(&writer, req)
-
-	statusLine := fmt.Appendf(make([]byte, 0), "%v %v %v\r\n", writer.StatusLine.HttpVersion, writer.StatusLine.StatusCode, writer.StatusLine.ReasonPhrase)
-
-	var headers []byte
-	for key, value := range writer.Headers {
-		headers = fmt.Appendf(headers, "%s: %s\r\n", key, value)
-	}
-
-	CRLF := []byte("\r\n")
-
-	var trailers []byte
-	for key, value := range writer.Trailers {
-		trailers = fmt.Appendf(trailers, "%s: %s\r\n", key, value)
-	}
-
-	response := append(statusLine, headers...)
-	response = append(response, CRLF...)
-	response = append(response, writer.Body...)
-	response = append(response, trailers...)
-	response = append(response, CRLF...)
-
-	fmt.Println(string(response))
-
-	conn.Write(response)
 }
