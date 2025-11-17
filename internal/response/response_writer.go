@@ -108,7 +108,12 @@ func (w *Writer) WriteChunkedBodyDone() error {
 		return errors.New("Writer state needs to be updated for writing chunked body")
 	}
 
+	_, err := w.Writer.Write([]byte("0\r\n\r\n"))
 	w.State = WritingTrailers
+	if err != nil {
+		return fmt.Errorf("Error writing end of chunked body: %v", err)
+	}
+
 	return nil
 }
 

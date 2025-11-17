@@ -116,76 +116,76 @@ func HandlerRoot(w *response.Writer, req *request.Request) {
 }
 
 func HandlerProxy(w *response.Writer, req *request.Request) {
-	val := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin")
+	val := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
+	url := fmt.Sprintf("https://httpbin.org/%s", val)
 
-	err := w.WriteStatusLine(response.StatusOK)
+	res, err := http.Get(url)
+	if err != nil {
+		HandlerMyProblem(w, req)
+		return
+	}
+	defer res.Body.Close()
+
+	err = w.WriteStatusLine(response.StatusOK)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	h := response.GetDefaultHeaders(0)
-
 	h.Delete("Content-Length")
-	h.SetHeaders("Transfer-Encoding", "chunked")
-	h.SetHeaders("Trailer", "X-Content-Length")
-	h.SetHeaders("Trailer", "X-Content-Sha256")
+	h.Override("Transfer-Encoding", "chunked")
+	h.Override("Trailer", "X-Content-SHA256, X-Content-Length")
 
 	err = w.WriteHeaders(h)
 	if err != nil {
-		log.Fatal(err)
+		HandlerMyProblem(w, req)
+		return
 	}
 
-	url := fmt.Sprintf("https://httpbin.org%s", val)
-
-	res, err := http.Get(url)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var bytesRead int
-	buffer := make([]byte, 8)
 	var body []byte
 	for {
-		if bytesRead >= cap(buffer) {
-			newBuffer := make([]byte, 2*cap(buffer))
-			copy(newBuffer, buffer)
-			buffer = newBuffer
+		buffer := make([]byte, 32)
+		n, err := res.Body.Read(buffer)
+
+		if err == io.EOF {
+			break
 		}
 
-		n, err := res.Body.Read(buffer[bytesRead:])
 		if err != nil {
-			if err == io.EOF {
-				chunkedLengthLine := fmt.Appendf(make([]byte, 0), "%x\r\n", n)
-				chunkedBodyLine := fmt.Appendf(buffer[bytesRead:bytesRead+n], "\r\n")
-				body = append(body, buffer[bytesRead:bytesRead+n]...)
-
-				w.WriteChunkedBody(chunkedLengthLine)
-				w.WriteChunkedBody(chunkedBodyLine)
-				w.WriteChunkedBodyDone()
-				break
-			}
 			log.Fatal(err)
 		}
 
-		chunkedLengthLine := fmt.Appendf(make([]byte, 0), "%x\r\n", n)
-		chunkedBodyLine := fmt.Appendf(buffer[bytesRead:bytesRead+n], "\r\n")
-		body = append(body, buffer[bytesRead:bytesRead+n]...)
+		if n > 0 {
+			chunkedLengthLine := fmt.Appendf(make([]byte, 0), "%x\r\n", n)
+			chunkedBodyLine := fmt.Appendf(buffer[:n], "\r\n")
+			body = append(body, buffer[:n]...)
 
-		w.WriteChunkedBody(chunkedLengthLine)
-		w.WriteChunkedBody(chunkedBodyLine)
-		bytesRead += n
+			_, err := w.WriteChunkedBody(chunkedLengthLine)
+			if err != nil {
+				fmt.Printf("Error writing chunked body: %v\n", err)
+			}
+
+			_, err = w.WriteChunkedBody(chunkedBodyLine)
+			if err != nil {
+				fmt.Printf("Error writing chunked body: %v\n", err)
+			}
+		}
 	}
 
-	hash := sha256.Sum256(body)
+	err = w.WriteChunkedBodyDone()
+	if err != nil {
+		fmt.Printf("Error finishing chunked body: %v\n", err)
+	}
 
 	trailers := headers.NewHeaders()
-	trailers["X-Content-Length"] = fmt.Sprintf("%d", len(body))
-	trailers["X-Content-Sha256"] = fmt.Sprintf("%x", hash)
+	trailers.Override("X-Content-SHA256", fmt.Sprintf("%x", sha256.Sum256(body)))
+	trailers.Override("X-Content-Length", fmt.Sprintf("%d", len(body)))
 
 	err = w.WriteTrailers(trailers)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Printf("Error writing trailers: %v", err)
 	}
+	fmt.Println("Trailers written")
 }
 
 func main() {
