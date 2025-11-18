@@ -144,7 +144,7 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 
 	var body []byte
 	for {
-		buffer := make([]byte, 32)
+		buffer := make([]byte, 1024)
 		n, err := res.Body.Read(buffer)
 
 		if err == io.EOF {
@@ -176,6 +176,8 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 	if err != nil {
 		fmt.Printf("Error finishing chunked body: %v\n", err)
 	}
+
+	fmt.Print(string(body))
 
 	trailers := headers.NewHeaders()
 	trailers.Override("X-Content-SHA256", fmt.Sprintf("%x", sha256.Sum256(body)))

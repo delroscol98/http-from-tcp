@@ -64,17 +64,20 @@ func (w *Writer) WriteHeaders(h headers.Headers) error {
 		return errors.New("Writer state needs to be updated for writing headers")
 	}
 
-	var headers []byte
 	for key, value := range h {
-		headers = fmt.Appendf(headers, "%s: %s\r\n", key, value)
+		headers := fmt.Appendf(make([]byte, 0), "%s: %s\r\n", key, value)
+		_, err := w.Writer.Write(headers)
+		if err != nil {
+			return fmt.Errorf("Error writing headers: %v", err)
+		}
 	}
 
-	_, err := w.Writer.Write(fmt.Appendf(headers, "\r\n"))
+	_, err := w.Writer.Write([]byte("\r\n"))
+	w.State = WritingBody
 	if err != nil {
 		return fmt.Errorf("Error writing headers: %v", err)
 	}
 
-	w.State = WritingBody
 	return nil
 }
 
@@ -122,12 +125,18 @@ func (w *Writer) WriteTrailers(t headers.Headers) error {
 		return errors.New("Writer state needs to be updated for writing trailers")
 	}
 
-	var trailer []byte
 	for key, value := range t {
-		trailer = fmt.Appendf(trailer, "%s: %s\r\n", key, value)
+		trailer := fmt.Appendf(make([]byte, 0), "%s: %s\r\n", key, value)
+		_, err := w.Writer.Write(trailer)
+		if err != nil {
+			return fmt.Errorf("Error writing trailers: %v", err)
+		}
 	}
 
-	w.Writer.Write(fmt.Appendf(trailer, "\r\n"))
+	_, err := w.Writer.Write([]byte("\r\n"))
 	w.State = WritingDone
+	if err != nil {
+		return fmt.Errorf("Error writing trailers: %v", err)
+	}
 	return nil
 }
