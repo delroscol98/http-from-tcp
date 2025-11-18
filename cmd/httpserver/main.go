@@ -134,7 +134,7 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 	h := response.GetDefaultHeaders(0)
 	h.Delete("Content-Length")
 	h.Override("Transfer-Encoding", "chunked")
-	h.Override("Trailer", "X-Content-SHA256, X-Content-Length")
+	h.Override("Trailer", "X-Content-Sha256, X-Content-Length")
 
 	err = w.WriteHeaders(h)
 	if err != nil {
@@ -180,7 +180,7 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 	fmt.Print(string(body))
 
 	trailers := headers.NewHeaders()
-	trailers.Override("X-Content-SHA256", fmt.Sprintf("%x", sha256.Sum256(body)))
+	trailers.Override("X-Content-Sha256", fmt.Sprintf("%x", sha256.Sum256(body)))
 	trailers.Override("X-Content-Length", fmt.Sprintf("%d", len(body)))
 
 	err = w.WriteTrailers(trailers)
