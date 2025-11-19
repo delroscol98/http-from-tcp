@@ -15,7 +15,6 @@ const (
 	WritingHeaders
 	WritingBody
 	WritingTrailers
-	WritingDone
 )
 
 const HTTPVersion = "HTTP/1.1"
@@ -87,7 +86,7 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 	}
 
 	n, err := w.Writer.Write(p)
-	w.State = WritingDone
+	w.State = WritingStatusLine
 	if err != nil {
 		return n, fmt.Errorf("Error writing body: %v", err)
 	}
@@ -134,7 +133,7 @@ func (w *Writer) WriteTrailers(t headers.Headers) error {
 	}
 
 	_, err := w.Writer.Write([]byte("\r\n"))
-	w.State = WritingDone
+	w.State = WritingStatusLine
 	if err != nil {
 		return fmt.Errorf("Error writing trailers: %v", err)
 	}

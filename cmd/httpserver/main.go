@@ -28,6 +28,8 @@ func handler(w *response.Writer, req *request.Request) {
 		HandlerRoot(w, req)
 	} else if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin") {
 		HandlerProxy(w, req)
+	} else if req.RequestLine.RequestTarget == "/video" {
+		handlerVideo(w, req)
 	}
 }
 
@@ -128,7 +130,7 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 
 	err = w.WriteStatusLine(response.StatusOK)
 	if err != nil {
-		log.Fatal(err)
+		HandlerYourProblem(w, req)
 	}
 
 	h := response.GetDefaultHeaders(0)
@@ -188,6 +190,32 @@ func HandlerProxy(w *response.Writer, req *request.Request) {
 		fmt.Printf("Error writing trailers: %v", err)
 	}
 	fmt.Println("Trailers written")
+}
+
+func handlerVideo(w *response.Writer, req *request.Request) {
+	videoBytes, err := os.ReadFile("assets/vim.mp4")
+	if err != nil {
+		HandlerMyProblem(w, req)
+		return
+	}
+
+	err = w.WriteStatusLine(response.StatusOK)
+	if err != nil {
+		return
+	}
+
+	h := response.GetDefaultHeaders(len(videoBytes))
+	h.Override("Content-Type", "video/mp4")
+
+	err = w.WriteHeaders(h)
+	if err != nil {
+		return
+	}
+
+	_, err = w.WriteBody(videoBytes)
+	if err != nil {
+		return
+	}
 }
 
 func main() {
